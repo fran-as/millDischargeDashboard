@@ -1,30 +1,21 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
-env_dir=".venv"
-
-# 1. Crear virtualenv si falta
-if [ ! -d "$env_dir" ]; then
-  echo "[INFO] Creando entorno virtual en $env_dir..."
-  python3 -m venv "$env_dir"
+# Activa entorno virtual
+if [ -f .venv/bin/activate ]; then
+  source .venv/bin/activate
+else
+  echo "Entorno virtual no encontrado. Crea uno con: python3 -m venv .venv"
+  exit 1
 fi
 
-# 2. Activar virtualenv
-echo "[INFO] Activando entorno virtual..."
-# shellcheck disable=SC1091
-source "$env_dir/bin/activate"
+# Ejecuta el ETL para procesar datos
+echo "[*] Ejecutando extract_data.py..."
+python extract_data.py
+if [ $? -ne 0 ]; then
+  echo "[!] Error al procesar datos. Revisa extract_data.py"
+  exit 1
+fi
 
-# 3. Actualizar pip e instalar requisitos
-echo "[INFO] Actualizando pip e instalando dependencias..."
-pip install --upgrade pip
-pip install -r requirements.txt
-
-# 4. Extraer y limpiar a CSV
-echo "[INFO] Extrayendo CSV limpio desde el Excel..."
-python extract_data.py \
-  --input data/250312_DataRequest_MetsoPumps.xlsx \
-  --output data/clean_pumps.csv
-
-# 5. Ejecutar Streamlit
-echo "[INFO] Iniciando Streamlit dashboard..."
+# Arranca el dashboard en modo local
+echo "[*] Iniciando Streamlit..."
 streamlit run dashboard.py

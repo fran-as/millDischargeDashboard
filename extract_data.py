@@ -1,52 +1,83 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
-Script provisional para extraer y limpiar dataPumps de Excel a CSV ligero.
-Permite especificar ruta de entrada (Excel) y ruta de salida (CSV).
+extract_data.py
+
+Este script carga el archivo de datos en Excel, normaliza los nombres de columna a camelCase,
+convierte la columna "date" a datetime y exporta un CSV optimizado para el dashboard.
+Además, limpia cualquier valor no numérico o nulo, asegurando compatibilidad para análisis.
 """
-import pandas as pd
-import argparse
 import os
+import numpy as np
+import pandas as pd
 
+# Mapeo de sufijos a notación camelCase (ajusta según tus convenciones)
+_SUFFIX_MAP = {
+    'm3xh': 'M3PerH',
+    'm3xhr': 'M3PerHr',
+    'psi': 'Psi',
+    'cant': 'Count',
+    'rpm': 'Rpm',
+    'kw': 'Kw',
+    'amp': 'Amp',
+    'prctj': 'Percent',
+    'kgperm3': 'KgPerM3',
+    'kgxm3': 'Kgxm3',
+    'um': 'Um',
+}
 
-def extract_to_csv(input_path: str, output_csv: str):
-    # 1. Leer Excel con doble encabezado en hoja 'Valores'
-    df_raw = pd.read_excel(input_path, sheet_name='Valores', header=[3,4])
+def _normalize_columns(columns):
+    """Normaliza una lista de nombres de columna a lowerCamelCase."""
+    new_cols = []
+    for col in columns:
+        name = str(col).strip()
+        if name.lower() == 'date':
+            new_cols.append('date')
+            continue
+        parts = name.split('_')
+        if len(parts) > 1:
+            base = ''.join(parts[:-1])
+            suffix = parts[-1].lower()
+            suffix_norm = _SUFFIX_MAP.get(suffix, suffix.capitalize())
+            raw = base + suffix_norm
+        else:
+            raw = parts[0]
+        # Garantizar lowerCamelCase
+        normalized = raw[0].lower() + raw[1:]
+        new_cols.append(normalized)
+    return new_cols
 
-    # 2. Aplanar nombres de columnas
-    cols = []
-    for lvl0, lvl1 in df_raw.columns:
-        cols.append(str(lvl1).strip() if pd.notna(lvl1) else str(lvl0).strip())
-    df_raw.columns = cols
+def extract(input_path: str, output_path: str):
+    # Cargar datos
+    df = pd.read_excel(input_path)
+    print(f"[INFO] Datos cargados: {df.shape[0]} filas x {df.shape[1]} columnas")
 
-    # 3. Eliminar primera columna auxiliar (Intervalo)
-    if cols:
-        df_raw = df_raw.drop(columns=[cols[0]], errors='ignore')
+    # Normalizar columnas
+    df.columns = _normalize_columns(df.columns)
+    print(f"[INFO] Columnas normalizadas: {df.columns.tolist()}")
 
-    # 4. Convertir tipos
-    df_raw['Fecha'] = pd.to_datetime(df_raw['Fecha'], errors='coerce')
-    for col in df_raw.columns:
-        if col != 'Fecha':
-            df_raw[col] = pd.to_numeric(df_raw[col], errors='coerce')
+    # Convertir "date" a datetime
+    df['date'] = pd.to_datetime(df['date'], errors='coerce')
 
-    # 5. Guardar CSV
-    os.makedirs(os.path.dirname(output_csv), exist_ok=True)
-    df_raw.to_csv(output_csv, index=False)
-    print(f"[✔] CSV limpio guardado en: {output_csv}")
+    # Limpieza: Forzar a numérico (salvo la fecha)
+    for col in df.columns:
+        if col != 'date':
+            df[col] = pd.to_numeric(df[col], errors='coerce')
 
+    # (Opcional) Reemplazar valores típicos de null por NaN
+    df.replace(['NULL', '', 'nan', 'NaN', 'None', None], np.nan, inplace=True)
+
+    # Resumen rápido de faltantes
+    missing = df.isna().sum()
+    print("[INFO] Valores faltantes por columna:")
+    print(missing[missing > 0])
+
+    # Guardar CSV optimizado
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    df.to_csv(output_path, index=False)
+    print(f"[INFO] CSV procesado guardado en: {output_path}")
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        description='Extrae dataPumps de Excel a CSV ligero.'
-    )
-    parser.add_argument(
-        '-i', '--input',
-        default='data/250312_DataRequest_MetsoPumps.xlsx',
-        help='Ruta al archivo Excel fuente (por defecto data/250312_DataRequest_MetsoPumps.xlsx)'
-    )
-    parser.add_argument(
-        '-o', '--output',
-        default='data/clean_pumps.csv',
-        help='Ruta de salida para el CSV limpio (por defecto data/clean_pumps.csv)'
-    )
-    args = parser.parse_args()
-    extract_to_csv(args.input, args.output)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    input_file = os.path.join(base_dir, 'data', 'dataPumps.xlsx')
+    output_file = os.path.join(base_dir, 'data', 'processed_pumps.csv')
+    extract(input_file, output_file)
