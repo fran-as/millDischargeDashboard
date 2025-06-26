@@ -85,33 +85,42 @@ def main():
     df_plot = df_sel.apply(pd.to_numeric, errors="coerce")
     df_plot = df_plot.loc[:, df_plot.notnull().any()]
 
-    # PRIMER GRÁFICO: Todos los parámetros vs date
+    # --- PRIMER GRÁFICO: Selector de atributos a mostrar vs date ---
     st.subheader(f"Serie temporal de parámetros principales - {pump_key}")
-    if not df_plot.empty:
-        st.line_chart(df_plot)
+    atributos_seleccionados = st.multiselect(
+        "Selecciona los parámetros que deseas visualizar en el gráfico temporal:",
+        options=params,
+        default=params
+    )
+    if atributos_seleccionados and not df_plot.empty:
+        st.line_chart(df_plot[atributos_seleccionados])
     else:
-        st.warning("No hay datos numéricos disponibles para graficar en el rango seleccionado.")
+        st.warning("No hay datos numéricos seleccionados para graficar.")
 
-    # SEGUNDO GRÁFICO: Scatter presión vs caudal (ahora sí Caudal en X y Presión en Y)
-    st.subheader("Scatter: Presión vs Caudal")
-    caudal_col = [col for col in params if 'caudal' in col.lower()]
-    presion_col = [col for col in params if 'presion' in col.lower()]
-    if caudal_col and presion_col:
-        scatter_df = df_plot[[caudal_col[0], presion_col[0]]].dropna()
-        scatter_df.columns = ['Caudal', 'Presión']
-        if not scatter_df.empty:
-            chart = alt.Chart(scatter_df).mark_circle(size=60, opacity=0.5).encode(
-                x=alt.X('Caudal', title='Caudal (m³/h)'),
-                y=alt.Y('Presión', title='Presión (Psi)'),
-                tooltip=['Caudal', 'Presión']
-            ).properties(
-                width=700, height=400
-            )
-            st.altair_chart(chart, use_container_width=True)
-        else:
-            st.info("No hay datos suficientes para graficar presión vs caudal.")
+    # --- SEGUNDO GRÁFICO: Selector X/Y para scatter ---
+    st.subheader("Scatter: Comparar dos atributos")
+
+    # Elegir atributos para eje X e Y (default: caudal y presión si existen)
+    default_x = next((col for col in params if 'caudal' in col.lower()), params[0])
+    default_y = next((col for col in params if 'presion' in col.lower()), params[1] if len(params) > 1 else params[0])
+
+    col_x = st.selectbox("Atributo eje X (horizontal)", options=params, index=params.index(default_x))
+    col_y = st.selectbox("Atributo eje Y (vertical)", options=params, index=params.index(default_y))
+
+    scatter_df = df_plot[[col_x, col_y]].dropna()
+    scatter_df.columns = ['X', 'Y']
+
+    if not scatter_df.empty:
+        chart = alt.Chart(scatter_df).mark_circle(size=60, opacity=0.5).encode(
+            x=alt.X('X', title=col_x),
+            y=alt.Y('Y', title=col_y),
+            tooltip=['X', 'Y']
+        ).properties(
+            width=700, height=400
+        )
+        st.altair_chart(chart, use_container_width=True)
     else:
-        st.info("No se encontraron columnas de caudal y presión para la bomba seleccionada.")
+        st.info("No hay datos suficientes para graficar estos atributos.")
 
 if __name__ == "__main__":
     main()
