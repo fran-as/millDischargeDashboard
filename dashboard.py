@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import streamlit as st
+import altair as alt
 
 VARIABLE_GROUPS = {
     'pump1': [
@@ -91,7 +92,7 @@ def main():
     else:
         st.warning("No hay datos numéricos disponibles para graficar en el rango seleccionado.")
 
-    # SEGUNDO GRÁFICO: Scatter presión vs caudal
+    # SEGUNDO GRÁFICO: Scatter presión vs caudal (ahora sí Caudal en X y Presión en Y)
     st.subheader("Scatter: Presión vs Caudal")
     caudal_col = [col for col in params if 'caudal' in col.lower()]
     presion_col = [col for col in params if 'presion' in col.lower()]
@@ -99,7 +100,14 @@ def main():
         scatter_df = df_plot[[caudal_col[0], presion_col[0]]].dropna()
         scatter_df.columns = ['Caudal', 'Presión']
         if not scatter_df.empty:
-            st.scatter_chart(scatter_df)
+            chart = alt.Chart(scatter_df).mark_circle(size=60, opacity=0.5).encode(
+                x=alt.X('Caudal', title='Caudal (m³/h)'),
+                y=alt.Y('Presión', title='Presión (Psi)'),
+                tooltip=['Caudal', 'Presión']
+            ).properties(
+                width=700, height=400
+            )
+            st.altair_chart(chart, use_container_width=True)
         else:
             st.info("No hay datos suficientes para graficar presión vs caudal.")
     else:
