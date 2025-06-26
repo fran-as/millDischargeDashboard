@@ -85,7 +85,7 @@ def main():
     df_plot = df_sel.apply(pd.to_numeric, errors="coerce")
     df_plot = df_plot.loc[:, df_plot.notnull().any()]
 
-    # --- PRIMER GRÁFICO: Selector de atributos a mostrar vs date ---
+    # --- 1. SERIE TEMPORAL: Selector de atributos ---
     st.subheader(f"Serie temporal de parámetros principales - {pump_key}")
     atributos_seleccionados = st.multiselect(
         "Selecciona los parámetros que deseas visualizar en el gráfico temporal:",
@@ -97,19 +97,14 @@ def main():
     else:
         st.warning("No hay datos numéricos seleccionados para graficar.")
 
-    # --- SEGUNDO GRÁFICO: Selector X/Y para scatter ---
+    # --- 2. SCATTER: Selector X/Y ---
     st.subheader("Scatter: Comparar dos atributos")
-
-    # Elegir atributos para eje X e Y (default: caudal y presión si existen)
     default_x = next((col for col in params if 'caudal' in col.lower()), params[0])
     default_y = next((col for col in params if 'presion' in col.lower()), params[1] if len(params) > 1 else params[0])
-
     col_x = st.selectbox("Atributo eje X (horizontal)", options=params, index=params.index(default_x))
     col_y = st.selectbox("Atributo eje Y (vertical)", options=params, index=params.index(default_y))
-
     scatter_df = df_plot[[col_x, col_y]].dropna()
     scatter_df.columns = ['X', 'Y']
-
     if not scatter_df.empty:
         chart = alt.Chart(scatter_df).mark_circle(size=60, opacity=0.5).encode(
             x=alt.X('X', title=col_x),
@@ -121,6 +116,25 @@ def main():
         st.altair_chart(chart, use_container_width=True)
     else:
         st.info("No hay datos suficientes para graficar estos atributos.")
+
+    # --- 3. HISTOGRAMA DE CAUDAL ---
+    st.subheader("Histograma: Distribución de Caudal")
+    caudal_col = next((col for col in params if "caudal" in col.lower()), None)
+    if caudal_col and caudal_col in df_plot.columns:
+        caudal_data = df_plot[caudal_col].dropna()
+        if not caudal_data.empty:
+            hist = alt.Chart(pd.DataFrame({'Caudal': caudal_data})).mark_bar().encode(
+                x=alt.X('Caudal:Q', bin=alt.Bin(maxbins=30), title='Caudal (m³/h)', sort='ascending'),
+                y=alt.Y('count()', title='Frecuencia')
+            ).properties(
+                width=700,
+                height=350
+            )
+            st.altair_chart(hist, use_container_width=True)
+        else:
+            st.info("No hay datos de caudal disponibles para el histograma.")
+    else:
+        st.info("No se encontró columna de caudal para la bomba seleccionada.")
 
 if __name__ == "__main__":
     main()
