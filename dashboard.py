@@ -1,13 +1,7 @@
-# dashboard.py
-
-"""
-Dashboard de operación de bombas
-"""
 import os
 import pandas as pd
 import streamlit as st
 
-# 1. Diccionario de agrupación de variables por bomba/línea
 VARIABLE_GROUPS = {
     'pump1': [
         'caudalDeAlimentacionNido1M3PerH',
@@ -61,7 +55,6 @@ VARIABLE_GROUPS = {
 
 @st.cache_data
 def load_data(csv_path: str) -> pd.DataFrame:
-    """Carga y prepara el DataFrame con índice de fecha"""
     df = pd.read_csv(csv_path, parse_dates=['date'])
     df = df.sort_values('date').set_index('date')
     return df
@@ -70,14 +63,10 @@ def main():
     st.set_page_config(page_title="Mill Discharge Dashboard", layout="wide")
     st.title("Mill Discharge Dashboard")
 
-    # Ruta al CSV procesado
     base_dir = os.path.dirname(os.path.abspath(__file__))
     csv_path = os.path.join(base_dir, 'data', 'processed_pumps.csv')
-
-    # Cargar datos
     df = load_data(csv_path)
 
-    # Selector de bomba
     pump_key = st.sidebar.selectbox(
         "Selecciona bomba/línea",
         list(VARIABLE_GROUPS.keys()),
@@ -91,9 +80,30 @@ def main():
     )
     df_sel = df.loc[start_date:end_date, params]
 
-    # Visualización
-    st.subheader(f"Parámetros de {pump_key}")
-    st.line_chart(df_sel)
+    # Limpieza de datos numéricos para graficar
+    df_plot = df_sel.apply(pd.to_numeric, errors="coerce")
+    df_plot = df_plot.loc[:, df_plot.notnull().any()]
+
+    # PRIMER GRÁFICO: Todos los parámetros vs date
+    st.subheader(f"Serie temporal de parámetros principales - {pump_key}")
+    if not df_plot.empty:
+        st.line_chart(df_plot)
+    else:
+        st.warning("No hay datos numéricos disponibles para graficar en el rango seleccionado.")
+
+    # SEGUNDO GRÁFICO: Scatter presión vs caudal
+    st.subheader("Scatter: Presión vs Caudal")
+    caudal_col = [col for col in params if 'caudal' in col.lower()]
+    presion_col = [col for col in params if 'presion' in col.lower()]
+    if caudal_col and presion_col:
+        scatter_df = df_plot[[caudal_col[0], presion_col[0]]].dropna()
+        scatter_df.columns = ['Caudal', 'Presión']
+        if not scatter_df.empty:
+            st.scatter_chart(scatter_df)
+        else:
+            st.info("No hay datos suficientes para graficar presión vs caudal.")
+    else:
+        st.info("No se encontraron columnas de caudal y presión para la bomba seleccionada.")
 
 if __name__ == "__main__":
     main()
