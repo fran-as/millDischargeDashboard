@@ -10,8 +10,8 @@ __pycache__/
 .vscode/
 .idea/
 
-# Datos generados
-data/processed_pumps.csv
+# Datos RAW
+data/dataPumps.xlsx
 
 # Logs
 *.log
